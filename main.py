@@ -7,71 +7,28 @@ import os
 import common
 
 
+def set_layout_visibility(layout: QLayout, visible: bool) -> None:
+    for i in range(layout.count()):
+        layout.itemAt(i).widget().setVisible(visible)
+
+
 class SettingsWindow(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Settings Window")
         # layout settings
-        layout = QVBoxLayout()
+        self.layout = QVBoxLayout()
         self.resize(900, 600)
-        self.layout = layout
-        self.setLayout(layout)
+        self.setLayout(self.layout)
         # llm box layout
         self.llm_layout = QGridLayout()
         self.layout.addLayout(self.llm_layout)
         # azure
-        azure_checkbox = QCheckBox("Azure")
-        azure_checkbox.setChecked(True)
-        azure_model = os.environ.get("AZURE_MODEL")
-        azure_endpoint = QLineEdit(os.environ.get("AZURE_ENDPOINT"))
-        azure_api_key = QLineEdit("AZURE_API_KEY")
-        azure_model = QLineEdit(os.environ.get("AZURE_MODEL"))
-        azure_prefix = QLineEdit(os.environ.get("AZURE_PREFIX"))
-        self.azure_inputs = (azure_checkbox, azure_endpoint, azure_api_key, azure_model, azure_prefix)
-        row = common.IterCount(0)
-        self.llm_layout.addWidget(azure_checkbox, row.val, 0, 1, 1)
-        self.llm_layout.addWidget(QLabel("Endpoint"), next(row), 0, 1, 1)
-        self.llm_layout.addWidget(azure_endpoint, row.val, 1, 1, 1)
-        self.llm_layout.addWidget(QLabel("Api Key"), next(row), 0, 1, 1)
-        self.llm_layout.addWidget(azure_api_key, row.val, 1, 1, 1)
-        self.llm_layout.addWidget(QLabel("Model"), next(row), 0, 1, 1)
-        self.llm_layout.addWidget(azure_model, row.val, 1, 1, 1)
-        self.llm_layout.addWidget(QLabel("Prefix"), next(row), 0, 1, 1)
-        self.llm_layout.addWidget(azure_prefix, row.val, 1, 1, 1)
+        self.gpt_inputs = self.set_llm_config_widget(self.layout, "AZURE")
         # gemini
-        gemini_checkox = QCheckBox("Gemini")
-        gemini_checkox.setChecked(True)
-        gemini_endpoint = QLineEdit(os.environ.get("GEMINI_ENDPOINT"))
-        gemini_api_key = QLineEdit("GEMINI_API_KEY")
-        gemini_model = QLineEdit(os.environ.get("GEMINI_MODEL"))
-        gemini_prefix = QLineEdit(os.environ.get("GEMINI_PREFIX"))
-        self.gemini_inputs = (gemini_checkox, gemini_endpoint, gemini_api_key, gemini_model, gemini_prefix)
-        self.llm_layout.addWidget(gemini_checkox, next(row), 0, 1, 1)
-        self.llm_layout.addWidget(QLabel("Endpoint"), next(row), 0, 1, 1)
-        self.llm_layout.addWidget(gemini_endpoint, row.val, 1, 1, 1)
-        self.llm_layout.addWidget(QLabel("Api Key"), next(row), 0, 1, 1)
-        self.llm_layout.addWidget(gemini_api_key, row.val, 1, 1, 1)
-        self.llm_layout.addWidget(QLabel("Model"), next(row), 0, 1, 1)
-        self.llm_layout.addWidget(gemini_model, row.val, 1, 1, 1)
-        self.llm_layout.addWidget(QLabel("Prefix"), next(row), 0, 1, 1)
-        self.llm_layout.addWidget(gemini_prefix, row.val, 1, 1, 1)
+        self.gpt_inputs = self.set_llm_config_widget(self.layout, "GEMINI")
         # GPT
-        gpt_checkox = QCheckBox("GPT")
-        gpt_checkox.setChecked(False)
-        gpt_endpoint = QLineEdit(os.environ.get("GPT_ENDPOINT"))
-        gpt_api_key = QLineEdit("GPT_API_KEY")
-        gpt_model = QLineEdit(os.environ.get("GPT_MODEL"))
-        gpt_prefix = QLineEdit(os.environ.get("gpt_PREFIX"))
-        self.gpt_inputs = (gpt_checkox, gpt_endpoint, gpt_api_key, gpt_model, gpt_prefix)
-        self.llm_layout.addWidget(gpt_checkox, next(row), 0, 1, 1)
-        self.llm_layout.addWidget(QLabel("Endpoint"), next(row), 0, 1, 1)
-        self.llm_layout.addWidget(gpt_endpoint, row.val, 1, 1, 1)
-        self.llm_layout.addWidget(QLabel("Api Key"), next(row), 0, 1, 1)
-        self.llm_layout.addWidget(gpt_api_key, row.val, 1, 1, 1)
-        self.llm_layout.addWidget(QLabel("Model"), next(row), 0, 1, 1)
-        self.llm_layout.addWidget(gpt_model, row.val, 1, 1, 1)
-        self.llm_layout.addWidget(QLabel("Prefix"), next(row), 0, 1, 1)
-        self.llm_layout.addWidget(gpt_prefix, row.val, 1, 1, 1)
+        self.gpt_inputs = self.set_llm_config_widget(self.layout, "GPT")
         # tts layout
         self.tts_layout = QGridLayout()
         tts_endpoint = QLineEdit(os.environ.get("TTS_ENDPOINT"))
@@ -89,7 +46,30 @@ class SettingsWindow(QWidget):
         start_button.setFixedSize(880, 100)
         start_button.clicked.connect(self.jump)
         self.layout.addWidget(start_button)
-
+    
+    def set_llm_config_widget(self, layout: QLayout,llm_name: str) -> tuple[QCheckBox, QLineEdit, QLineEdit, QLineEdit, QLineEdit]:
+        checkbox = QCheckBox(llm_name)
+        checkbox.setChecked(True)
+        model = os.environ.get(f"{llm_name}_MODEL")
+        endpoint = QLineEdit(os.environ.get(f"{llm_name}_ENDPOINT"))
+        api_key = QLineEdit(f"{llm_name}_API_KEY")
+        model = QLineEdit(os.environ.get(f"{llm_name}_MODEL"))
+        prefix = QLineEdit(os.environ.get(f"{llm_name}_PREFIX"))
+        inputs = (checkbox, endpoint, api_key, model, prefix)
+        layout.addWidget(checkbox)
+        llm_layout = QGridLayout()
+        layout.addLayout(llm_layout)
+        row = common.IterCount(0)
+        llm_layout.addWidget(QLabel("Endpoint"), next(row), 0, 1, 1)
+        llm_layout.addWidget(endpoint, row.val, 1, 1, 1)
+        llm_layout.addWidget(QLabel("Api Key"), next(row), 0, 1, 1)
+        llm_layout.addWidget(api_key, row.val, 1, 1, 1)
+        llm_layout.addWidget(QLabel("Model"), next(row), 0, 1, 1)
+        llm_layout.addWidget(model, row.val, 1, 1, 1)
+        llm_layout.addWidget(QLabel("Prefix"), next(row), 0, 1, 1)
+        llm_layout.addWidget(prefix, row.val, 1, 1, 1)
+        checkbox.stateChanged.connect(lambda: set_layout_visibility(llm_layout, checkbox.isChecked()))
+        return inputs
     
     def jump(self) -> None:
         if self.azure_inputs[0].isChecked():
