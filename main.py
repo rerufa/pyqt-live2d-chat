@@ -14,6 +14,7 @@ import asyncio
 from typing import Callable
 import queue
 import traceback
+import llms
 
 
 def set_layout_visibility(layout: QLayout, visible: bool) -> None:
@@ -271,21 +272,15 @@ class MyChatBubble(QWidget):
 
 
 def llm_clo(loop: asyncio.BaseEventLoop) -> str:
-    bks = []
-    llms = []
+    llm_list = []
     if os.environ.get("ENABLE_AZURE") == "true":
-        simple_azure_bk = []
-        bks.append(simple_azure_bk)
-        llms.append(azure_clo(loop, simple_azure_bk))
+        llm_list.append(llms.azure_clo(loop))
     if os.environ.get("ENABLE_GEMINI") == "true":
-        simple_gemini_bk = []
-        bks.append(simple_gemini_bk)
-        llms.append(gemini_clo(loop, simple_gemini_bk))
+        llm_list.append(llms.gemini_clo(loop))
     @common.wrap_log_ts_async
     async def llm_inner(text: str) -> str:
-        common.lru_pop(*bks)
         tasks = []
-        for llm in llms:
+        for llm in llm_list:
             task = asyncio.ensure_future(llm(text))
             tasks.append(task)
         dones, _ = await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
@@ -297,127 +292,6 @@ def llm_clo(loop: asyncio.BaseEventLoop) -> str:
                 return done.result()
         return None
     return llm_inner
-
-
-def azure_clo(loop: asyncio.BaseEventLoop, bk: list[dict[str, str]]) -> Callable:
-    endpoint = os.environ.get("AZURE_ENDPOINT")
-    api_key = os.environ.get("AZURE_API_KEY")
-    model = os.environ.get("AZURE_MODEL")
-    prefixs = os.environ.get("AZURE_PREFIX").split(",")
-    url = f"{endpoint}/openai/deployments/{model}/chat/completions?api-version=2023-03-15-preview"
-    init_prompt = open("./prompts/bullet_init.txt").read()
-    error_prompt = open("./prompts/bullet_error.txt").read()
-    async def azure_inner(text: str) -> str:
-        for prefix in prefixs:
-            if text.startswith(prefix):
-                text = text[len(prefix):]
-                break
-        else:
-            return None
-        messages = [
-            {
-                "role": "system",
-                "content": init_prompt
-            },
-            {
-                "role": "user",
-                "content": text
-            }
-        ]
-        messages.extend(bk)
-        new_message = {
-            "role": "user",
-            "content": text
-        }
-        messages.append(new_message)
-        resp = await loop.run_in_executor(
-            None, 
-            functools.partial(requests.post, 
-            url=url,
-            headers={"Content-Type": "application/json", "api-key": api_key},
-            json={
-                "messages": messages
-            }
-            )
-        )
-        if resp.json()['choices'][0]['finish_reason'] == "content_filter":
-            return error_prompt
-        re_message = resp.json()['choices'][0]['message']
-        bk.append(new_message)
-        bk.append(
-            {
-                "role": re_message['role'],
-                "content": re_message['content']
-            }
-        )
-        return resp.json()['choices'][0]['message']['content']
-    return azure_inner
-
-
-def gemini_clo(loop: asyncio.BaseEventLoop, bk: list[dict[str, str]]) -> Callable:
-    endpoint = os.environ.get("GEMINI_ENDPOINT")
-    model = os.environ.get("GEMINI_MODEL")
-    api_key = os.environ.get("GEMINI_API_KEY")
-    prefixs = os.environ.get("GEMINI_PREFIX").split(",")
-    url = f"{endpoint}/v1/models/{model}?key={api_key}"
-    init_prompt = open("./prompts/bullet_init.txt").read()
-    error_prompt = open("./prompts/bullet_error.txt").read()
-    async def gemini_inner(text: str) -> str:
-        for prefix in prefixs:
-            if text.startswith(prefix):
-                text = text[len(prefix):]
-                break
-        else:
-            return None
-        contents = [
-            {
-                "role": "user",
-                "parts": [
-                    {
-                        "text": init_prompt
-                    }
-                ]
-            },
-            {
-                "role": "model",
-                "parts": [
-                    {
-                        "text": "我一定遵守."
-                    }
-                ]
-            },
-        ]
-        contents.extend(bk)
-        new_message = {
-            "role": "user",
-            "parts": [
-                    {
-                        "text": text
-                    }
-            ]
-        }
-        contents.append(new_message)
-        resp = await loop.run_in_executor(
-            None,
-            functools.partial(
-                requests.post,
-                url=url,
-                headers={"Content-Type": "application/json"},
-                json={
-                    "contents": contents
-                }
-            )
-        )
-        try:
-            re_message = resp.json()['candidates'][0]['content']
-        except Exception as e:
-            logging.error(f"gemini error, response is {resp.text}")
-            return error_prompt
-        bk.append(new_message)
-        bk.append(re_message)
-        return re_message['parts'][0]['text']
-    return gemini_inner
-
 
 
 def main() -> None:
