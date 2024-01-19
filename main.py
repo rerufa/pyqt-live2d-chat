@@ -15,6 +15,10 @@ from typing import Callable
 import queue
 import traceback
 import llms
+import io
+import scipy
+import sounddevice as sd
+import ttss
 
 
 def set_layout_visibility(layout: QLayout, visible: bool) -> None:
@@ -48,17 +52,21 @@ class SettingsWindow(QWidget):
         # tts layout
         self.tts_layout = QGridLayout()
         tts_endpoint = QLineEdit(os.environ.get("TTS_ENDPOINT"))
-        self.tts_checkbox = QCheckBox("TTS")
+        self.tts_checkbox = QCheckBox("Enable TTS")
+        if os.environ.get("ENABLE_TTS") == 'true': self.tts_checkbox.setChecked(True)
         self.tts_checkbox.setChecked(True)
         self.tts_layout.addWidget(self.tts_checkbox, 0, 0, 1, 1)
         self.tts_layout.addWidget(QLabel("TTS Endpoint"), 0, 1, 1, 1)
         self.tts_layout.addWidget(tts_endpoint, 0, 2, 1, 1)
         self.layout.addLayout(self.tts_layout)
         self.chatbox_checkbox = QCheckBox("Show Chat Box")
-        enable_chatbox = os.environ.get("ENABLE_CHATBOX")
-        if enable_chatbox == 'true': self.chatbox_checkbox.setChecked(True)
+        if os.environ.get("ENABLE_CHATBOX") == 'true': self.chatbox_checkbox.setChecked(True)
         else: self.chatbox_checkbox.setChecked(False)
         self.layout.addWidget(self.chatbox_checkbox)
+        self.llm_checkbox = QCheckBox("Enable LLM")
+        if os.environ.get("ENABLE_LLM") == 'true': self.llm_checkbox.setChecked(True)
+        else: self.llm_checkbox.setChecked(False)
+        self.layout.addWidget(self.llm_checkbox)
         # jump button
         start_button = QPushButton("Start")
         start_button.setFixedSize(880, 100)
@@ -111,10 +119,11 @@ class SettingsWindow(QWidget):
             # os.environ["GPT_API_KEY"] = self.gpt_inputs[2].text()
             os.environ["GPT_MODEL"] = self.gpt_inputs[3].text()
             os.environ["GPT_PREFIX"] = self.gpt_inputs[4].text()
-        os.environ["TTS_ENDPOINT"] = self.tts_layout.itemAt(1).widget().text()
+        os.environ["TTS_ENDPOINT"] = self.tts_layout.itemAt(2).widget().text()
         os.environ["LIVE2D_ENDPOINT"] = self.live2d_layout.itemAt(1).widget().text()
-        os.environ["USE_TTS"] = str(self.tts_checkbox.isChecked()).lower()
+        os.environ["ENABLE_TTS"] = str(self.tts_checkbox.isChecked()).lower()
         os.environ["ENABLE_CHATBOX"] = str(self.chatbox_checkbox.isChecked()).lower()
+        os.environ["ENABLE_LLM"] = str(self.llm_checkbox.isChecked()).lower()
         self.hide()
         self.next_window = MainWindow()
         self.next_window.show()
@@ -156,8 +165,12 @@ class MainWindow(QWidget):
         self.text_edit.setFrameStyle(0) # 0 is invisible
         self.live2d_layout.addWidget(self.text_edit)
         self.live2d_layout.addWidget(self.web_window)
+        self.back_q = queue.Queue()
+        self.back_thread = BackThead(self.back_q)
+        self.back_thread.start()
+        self.back_thread.signal.sig.connect(self.back_callback)
+        # chat box 
         if os.environ.get("ENABLE_CHATBOX") == 'true':
-            # chat box 
             self.chat_layout = QVBoxLayout()
             self.layout.addLayout(self.chat_layout, 0, 1, 1, 1)
             self.list_widget = QListWidget()
@@ -171,13 +184,9 @@ class MainWindow(QWidget):
             self.submit_button = QPushButton("Submit")
             self.chat_layout.addWidget(self.submit_button)
 
-            self.q =  queue.Queue()
-            self.llm_thread = LlmThead(self.q)
-            self.llm_thread.start()
             # 连接信号
             self.submit_button.clicked.connect(self.on_submit_pressed)
             self.input_box.returnPressed.connect(self.on_submit_pressed)
-            self.llm_thread.signal.sig.connect(self.llm_callback)
 
     def on_submit_pressed(self) -> None:
         # 获取输入文本
@@ -193,7 +202,7 @@ class MainWindow(QWidget):
         self.input_box.setEnabled(False)
         self.submit_button.setEnabled(False)
         # send 2 llm
-        self.q.put(text)
+        self.back_q.put(text)
     
     def list_widget_add_item(self, text: str, align: Qt.AlignmentFlag=Qt.AlignmentFlag.AlignLeft) -> None:
         item = QListWidgetItem(self.list_widget)
@@ -208,7 +217,7 @@ class MainWindow(QWidget):
         while self.list_widget.count() > 30:
             self.list_widget.takeItem(0)
     
-    def llm_callback(self, text: str) -> None:
+    def back_callback(self, text: str) -> None:
         self.input_box.setText("")
         self.input_box.setEnabled(True)
         self.submit_button.setEnabled(True)
@@ -217,28 +226,6 @@ class MainWindow(QWidget):
         self.list_widget_add_item(text)
         self.text_edit.setHtml(text[:120])
         self.list_widget.scrollToBottom()
-
-
-class LlmSignal(QObject):
-    sig = Signal(str)
-
-
-class LlmThead(QThread):
-    def __init__(self, q: queue.Queue, parent=None) -> None:
-        super().__init__(parent)
-        self.signal = LlmSignal()
-        self.q = q
-        self.loop = asyncio.get_event_loop()
-        self.llm = llm_clo(self.loop)
-    
-    def run(self) -> None:
-        while True:
-            tmp = self.q.get()
-            try:
-                self.signal.sig.emit(self.loop.run_until_complete(self.llm(tmp)))
-            except Exception as e: 
-                traceback.print_exc()
-                self.signal.sig.emit("哦呀, 出错了.")
 
 
 class MyChatBubble(QWidget):
@@ -271,12 +258,12 @@ class MyChatBubble(QWidget):
         painter.drawText(QRect(abs(self.delta - 10), 0, self.width() - self.width_fix, self.height()), self.message, self.align)
 
 
-def llm_clo(loop: asyncio.BaseEventLoop) -> str:
+def llm_clo() -> str:
     llm_list = []
     if os.environ.get("ENABLE_AZURE") == "true":
-        llm_list.append(llms.azure_clo(loop))
+        llm_list.append(llms.azure_clo())
     if os.environ.get("ENABLE_GEMINI") == "true":
-        llm_list.append(llms.gemini_clo(loop))
+        llm_list.append(llms.gemini_clo())
     @common.wrap_log_ts_async
     async def llm_inner(text: str) -> str:
         tasks = []
@@ -292,6 +279,96 @@ def llm_clo(loop: asyncio.BaseEventLoop) -> str:
                 return done.result()
         return None
     return llm_inner
+
+
+class BackSignal(QObject):
+    sig = Signal(str)
+
+
+class BackThead(QThread):
+    def __init__(self, q: queue.Queue, parent=None) -> None:
+        super().__init__(parent)
+        self.signal = BackSignal()
+        self.q = q
+        self.loop = asyncio.get_event_loop()
+        self.tts_enable =  True if os.environ.get("ENABLE_TTS") == 'true' else False
+        self.llm_enable =  True if os.environ.get("ENABLE_LLM") == 'true' else False
+        if self.llm_enable:
+            self.llm = llm_clo()
+        if self.tts_enable:
+            self.tts = ttss.bert_vits_tts_clo()
+            self.audio_queue = queue.Queue()
+            self.audio_thread = AudioThread(self.audio_queue)
+            self.audio_thread.start()
+        
+    def run(self) -> None:
+        while True:
+            temp = self.q.get()
+            try:
+                self.loop.run_until_complete(self.task_run(temp))
+            except Exception as e: 
+                traceback.print_exc()
+                self.signal.sig.emit("哦呀, 出错了.")
+    
+    async def task_run(self, text: str) -> None:
+        tasks = []
+        tts_task = None
+        llm_task = None
+        re = None
+        if self.tts_enable:
+            tts_task = asyncio.ensure_future(self.tts(text))
+            tasks.append(tts_task)
+        if self.llm_enable:
+            llm_task = asyncio.ensure_future(self.llm(text))
+            tasks.append(llm_task)
+        await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
+        if tts_task is not None:
+            if tts_task.exception() is not None:
+                logging.warning(f"tts error {tts_task.exception()}")
+            elif tts_task.result() is not None:
+                self.audio_queue.put(tts_task.result())
+        if llm_task is not None:
+            if llm_task.exception() is not None:
+                logging.warning(f"llm error {llm_task.exception()}")
+            elif llm_task.result() is not None:
+                if self.tts_enable:
+                    llm_tts = await asyncio.ensure_future(self.tts(llm_task.result()))
+                    if llm_tts is not None: self.audio_queue.put(llm_tts)
+                re = llm_task.result()
+        self.signal.sig.emit(re)
+
+
+class AudioSignal(QObject):
+    sig = Signal(str)
+
+
+class AudioThread(QThread):
+    def __init__(self, q: queue.Queue ,parent=None) -> None:
+        super().__init__(parent)
+        # common.init_log("qt_audio_sub")
+        logging.info("qt audio process start")
+        self.signal = AudioSignal()
+        self.q = q
+        self.volume = float(os.environ.get('VOLUME'))
+    
+    def run(self) -> None:
+        while True:
+            audio = self.q.get()
+            try:
+                temp_audio = io.BytesIO(audio)
+                rate, data = scipy.io.wavfile.read(temp_audio)
+                data = data * self.volume
+                # self.signal.sig.emit("open")
+                sd.play(data, rate, blocking=True)
+                # self.signal.sig.emit("close")
+            except Exception as e:
+                traceback.print_exc()
+                logging.error(f"play audio error {e}")
+    
+    # close
+    def terminate(self) -> None:
+        super().terminate()
+        self.wait()
 
 
 def main() -> None:

@@ -7,7 +7,8 @@ import requests
 import common
 
 
-def gemini_clo(loop: asyncio.BaseEventLoop) -> Callable:
+def gemini_clo() -> Callable:
+    loop = asyncio.get_event_loop()
     bk = []
     endpoint = os.environ.get("GEMINI_ENDPOINT")
     model = os.environ.get("GEMINI_MODEL")

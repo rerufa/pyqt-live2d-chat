@@ -6,7 +6,8 @@ import requests
 import common
 
 
-def azure_clo(loop: asyncio.BaseEventLoop) -> Callable:
+def azure_clo() -> Callable:
+    loop = asyncio.get_event_loop()
     bk = []
     endpoint = os.environ.get("AZURE_ENDPOINT")
     api_key = os.environ.get("AZURE_API_KEY")
