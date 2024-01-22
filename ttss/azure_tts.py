@@ -4,6 +4,7 @@ from typing import Callable
 import common
 import os
 import functools
+import logging
 
 
 def azure_tts_clo(loop: asyncio.BaseEventLoop=None) -> Callable:
@@ -14,25 +15,34 @@ def azure_tts_clo(loop: asyncio.BaseEventLoop=None) -> Callable:
     url = f"{azure_tts_endpoint}/cognitiveservices/v1"
     @common.wrap_log_ts_async
     async def azure_tts_inner(text: str) -> bytes:
-        resp = await loop.run_in_executor(
-            None,
-            functools.partial(
-                requests.post,
-                url,
-                headers={
-                    "Ocp-Apim-Subscription-Key": azure_tts_api_key,
-                    "Content-Type": "application/ssml+xml",
-                    "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3",
-                    "User-Agent": azure_tts_name
-                },
-                data=f"""
-                <speak version="1.0" xml:lang="en-CN">
-                    <voice name="{azure_tts_name}">
-                        {text}
-                    </voice>
-                </speak>
-                """
-            )
-            )
+        retry = 3
+        while retry > 0:
+            resp = await loop.run_in_executor(
+                None,
+                functools.partial(
+                    requests.post,
+                    url,
+                    headers={
+                        "Ocp-Apim-Subscription-Key": azure_tts_api_key,
+                        "Content-Type": "application/ssml+xml",
+                        "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3",
+                        "User-Agent": azure_tts_name
+                    },
+                    data=f"""
+                    <speak version="1.0" xml:lang="en-CN">
+                        <voice name="{azure_tts_name}">
+                            {text}
+                        </voice>
+                    </speak>
+                    """
+                )
+                )
+            if resp.status_code != 200:
+                logging.warning("TTS Error: %s %s", resp.status_code, resp.text)
+                retry -= 1
+                continue
+            else: break
+        else:
+            raise Exception("TTS Error.")
         return resp.content
     return azure_tts_inner

@@ -11,3 +11,4 @@ live2d/Samples/Resources/*
 !live2d/Samples/Resources/back_class_normal.png
 *.log
 *.spec
+*.swp

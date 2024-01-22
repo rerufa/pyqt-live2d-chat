@@ -17,6 +17,9 @@ import io
 import sounddevice as sd
 import soundfile as sf
 import ttss
+import requests
+import json
+import time
 
 
 def set_layout_visibility(layout: QLayout, visible: bool) -> None:
@@ -74,6 +77,10 @@ class SettingsWindow(QWidget):
         if os.environ.get("ENABLE_CHATBOX") == 'true': self.chatbox_checkbox.setChecked(True)
         else: self.chatbox_checkbox.setChecked(False)
         self.layout.addWidget(self.chatbox_checkbox)
+        # bili live bullet
+        self.bili_checkbox = QCheckBox("Enable Bili Live Bullet")
+        if os.environ.get("ENABLE_BILI") == 'true': self.bili_checkbox.setChecked(True)
+        self.layout.addWidget(self.bili_checkbox)
         # jump button
         start_button = QPushButton("Start")
         start_button.setFixedSize(880, 100)
@@ -88,9 +95,15 @@ class SettingsWindow(QWidget):
         os.environ["ENABLE_TTS"] = str(self.tts_checkbox.isChecked()).lower()
         os.environ["ENABLE_CHATBOX"] = str(self.chatbox_checkbox.isChecked()).lower()
         os.environ["TTS_TYPE"] = str(self.tts_radio_group.checkedButton().text())
+        os.environ["ENABLE_BILI"] = str(self.bili_checkbox.isChecked()).lower()
         self.hide()
         self.next_window = MainWindow()
         self.next_window.show()
+        self.destroy()
+    
+    # close
+    def closeEvent(self, event: QCloseEvent) -> None:
+        super().closeEvent(event)
 
 
 class MainWindow(QWidget):
@@ -98,12 +111,12 @@ class MainWindow(QWidget):
         super().__init__()
         self.setWindowTitle("Main Window")
         self.resize(500, 800)
-        # self.setAttribute(Qt.WA_TranslucentBackground)
-        # self.setWindowFlags(
-        #     # Qt.WindowType.WindowStaysOnTopHint
-        #     Qt.WindowType.FramelessWindowHint 
-        #     # Qt.WindowType.WindowTransparentForInput
-        # )
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setWindowFlags(
+            # Qt.WindowType.WindowStaysOnTopHint
+            Qt.WindowType.FramelessWindowHint 
+            # Qt.WindowType.WindowTransparentForInput
+        )
         # layout setting
         self.layout = QGridLayout(self)
         self.layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -134,7 +147,9 @@ class MainWindow(QWidget):
         self.back_thread.start()
         self.back_thread.signal.sig.connect(self.back_callback)
         # chat box 
-        if os.environ.get("ENABLE_CHATBOX") == 'true':
+        self.chatbox_enable = True if os.environ.get("ENABLE_CHATBOX") == 'true' else False
+        if self.chatbox_enable:
+            self.chatbox_enable = True
             self.chat_layout = QVBoxLayout()
             self.layout.addLayout(self.chat_layout, 0, 1, 1, 1)
             self.list_widget = QListWidget()
@@ -182,14 +197,16 @@ class MainWindow(QWidget):
             self.list_widget.takeItem(0)
     
     def back_callback(self, text: str) -> None:
-        self.input_box.setText("")
-        self.input_box.setEnabled(True)
-        self.submit_button.setEnabled(True)
-        self.input_box.setFocus()
-        if text in (None, ""): return
-        self.list_widget_add_item(text)
-        self.text_edit.setHtml(text[:120])
-        self.list_widget.scrollToBottom()
+        if self.chatbox_enable:
+            self.input_box.setEnabled(True)
+            self.submit_button.setEnabled(True)
+            self.input_box.setText("")
+            self.input_box.setFocus()
+        if text not in (None, ""):
+            if self.chatbox_enable:
+                self.list_widget_add_item(text)
+                self.list_widget.scrollToBottom()
+            self.text_edit.setHtml(text[:120])
 
     # close
     def closeEvent(self, event: QCloseEvent) -> None:
@@ -264,6 +281,7 @@ class BackThead(QThread):
         self.loop = asyncio.get_event_loop()
         self.tts_enable =  True if os.environ.get("ENABLE_TTS") == 'true' else False
         self.llm_enable =  True if os.environ.get("ENABLE_LLM") == 'true' else False
+        self.bili_enable =  True if os.environ.get("ENABLE_BILI") == 'true' else False
         if self.llm_enable:
             self.llm = llm_clo()
         if self.tts_enable:
@@ -275,6 +293,9 @@ class BackThead(QThread):
             self.audio_queue = queue.Queue()
             self.audio_thread = AudioThread(self.audio_queue)
             self.audio_thread.start()
+        if self.bili_enable:
+            self.bili_thread = BiliThread(self.q)
+            self.bili_thread.start()
         
     def run(self) -> None:
         while True:
@@ -316,6 +337,7 @@ class BackThead(QThread):
     def terminate(self) -> None:
         super().terminate()
         self.audio_thread.terminate()
+        self.bili_thread.terminate()
 
 
 class AudioSignal(QObject):
@@ -342,6 +364,54 @@ class AudioThread(QThread):
             except Exception as e:
                 traceback.print_exc()
                 logging.error(f"play audio error {e}")
+    
+    # close
+    def terminate(self) -> None:
+        super().terminate()
+        self.wait()
+
+
+class BiliThread(QThread):
+    def __init__(self, q: queue.Queue ,parent=None) -> None:
+        super().__init__(parent)
+        logging.info("bili thread start")
+        self.q = q
+        self.room_id = os.environ.get("BILI_ROOM_ID")
+    
+    def get_bullets(self) -> list[tuple[str, str]]:
+        url = f"https://api.live.bilibili.com/xlive/web-room/v1/dM/gethistory?roomid={self.room_id}&room_type=0"
+        # api return ten bullets
+        headers = {
+            "authority": "api.live.bilibili.com",
+            "accept": "application/json",
+            "accept-language": "zh-CN",
+            "origin": "https://live.bilibili.com",
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36"
+        }
+        resp = requests.get(url, headers=headers)
+        data = json.loads(resp.text)
+        re = []
+        room = data['data']['room']
+        for line in room:
+            re.append((line['nickname'], line['text']))
+        return re
+    
+    def run(self) -> None:
+        simple_bk = []
+        while True:
+            try:
+                re = self.get_bullets()
+                start = 0 if len(re)-5<0 else len(re)-5
+                for i in range(start, len(re)):
+                    text = re[i][1]
+                    if text in simple_bk: continue
+                    simple_bk.append(text)
+                    self.q.put(text)
+                simple_bk = simple_bk[-100:]
+                time.sleep(5)
+            except Exception as e:
+                traceback.print_exc()
+                logging.error(f"loop bullet error {e}")
     
     # close
     def terminate(self) -> None:

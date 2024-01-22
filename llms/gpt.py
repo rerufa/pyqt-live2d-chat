@@ -49,7 +49,6 @@ def gpt_clo() -> Callable:
             }
             )
         )
-        print(resp.text)
         if resp.json()['choices'][0]['finish_reason'] == "content_filter":
             return error_prompt
         re_message = resp.json()['choices'][0]['message']
