@@ -8,7 +8,7 @@ from typing import Callable
 
 def bert_vits_tts_clo(loop: asyncio.BaseEventLoop = None) -> Callable:
     if loop is None: loop = asyncio.get_event_loop()
-    url = os.environ.get("TTS_ENDPOINT")
+    url = os.environ.get("BERT_VITS_TTS_ENDPOINT")
     @common.wrap_log_ts_async
     async def bert_vits_tts_inner(text: str) -> bytes:
         resp = await loop.run_in_executor(

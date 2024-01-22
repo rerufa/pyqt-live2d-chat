@@ -191,6 +191,11 @@ class MainWindow(QWidget):
         self.text_edit.setHtml(text[:120])
         self.list_widget.scrollToBottom()
 
+    # close
+    def closeEvent(self, event: QCloseEvent) -> None:
+        super().closeEvent(event)
+        self.back_thread.terminate()
+
 
 class MyChatBubble(QWidget):
     def __init__(self, message: str, height: int=50, align: Qt.AlignmentFlag=Qt.AlignmentFlag.AlignLeft, parent=None):
@@ -304,6 +309,11 @@ class BackThead(QThread):
                     if llm_tts is not None: self.audio_queue.put(llm_tts)
                 re = llm_task.result()
         self.signal.sig.emit(re)
+    
+    # close 
+    def terminate(self) -> None:
+        super().terminate()
+        self.audio_thread.terminate()
 
 
 class AudioSignal(QObject):
@@ -314,10 +324,10 @@ class AudioThread(QThread):
     def __init__(self, q: queue.Queue ,parent=None) -> None:
         super().__init__(parent)
         # common.init_log("qt_audio_sub")
-        logging.info("qt audio process start")
+        logging.info("qt audio thread start")
         self.signal = AudioSignal()
         self.q = q
-        self.volume = float(os.environ.get('VOLUME'))
+        self.volume = float(os.environ.get('TTS_VOLUME'))
     
     def run(self) -> None:
         while True:
