@@ -1,4 +1,4 @@
-pyinstaller -w -y ./qt_main.py
+pyinstaller -w -y ./main.py
 
 
 Copy-Item ./.env -Destination ./dist/main -Force
