@@ -1,6 +1,7 @@
 scipy
 python-dotenv
 sounddevice
+soundfile
 PySide6
 pyinstaller
 flask
