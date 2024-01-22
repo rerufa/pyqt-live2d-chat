@@ -8,16 +8,14 @@ import os
 import common
 import sys
 import logging
-import functools
-import requests
 import asyncio
 from typing import Callable
 import queue
 import traceback
 import llms
 import io
-import scipy
 import sounddevice as sd
+import soundfile as sf
 import ttss
 
 
@@ -36,94 +34,60 @@ class SettingsWindow(QWidget):
         self.setLayout(self.layout)
         # llm box layout
         self.llm_layout = QGridLayout()
+        llm_row = common.IterCount(0)
         self.layout.addLayout(self.llm_layout)
+        self.llm_checkbox = QCheckBox("Enable LLM")
+        if os.environ.get("ENABLE_LLM") == 'true': self.llm_checkbox.setChecked(True)
+        self.llm_layout.addWidget(self.llm_checkbox, llm_row.val, 0, 1, 1)
         # azure
-        self.azure_inputs = self.set_llm_config_widget(self.layout, "AZURE")
+        self.azure_checkbox = QCheckBox("Enable Azure")
+        if os.environ.get("ENABLE_AZURE") == 'true': self.azure_checkbox.setChecked(True)
+        self.llm_layout.addWidget(self.azure_checkbox, next(llm_row), 0, 1, 1)
         # gemini
-        self.gemini_inputs = self.set_llm_config_widget(self.layout, "GEMINI")
+        self.gemini_checkbox = QCheckBox("Enable Gemini")
+        if os.environ.get("ENABLE_GEMINI") == 'true': self.gemini_checkbox.setChecked(True)
+        self.llm_layout.addWidget(self.gemini_checkbox, llm_row.val, 1, 1, 1)
         # GPT
-        self.gpt_inputs = self.set_llm_config_widget(self.layout, "GPT")
-        # live2d layout
-        self.live2d_layout = QGridLayout()
-        live2d_endpoint = QLineEdit(os.environ.get("LIVE2D_ENDPOINT"))
-        self.live2d_layout.addWidget(QLabel("Live2D Endpoint"), 0, 0, 1, 1)
-        self.live2d_layout.addWidget(live2d_endpoint, 0, 1, 1, 1)
-        self.layout.addLayout(self.live2d_layout)
+        self.gpt_checkbox = QCheckBox("Enable GPT")
+        if os.environ.get("ENABLE_GPT") == 'true': self.gpt_checkbox.setChecked(True)
+        self.llm_layout.addWidget(self.gpt_checkbox, llm_row.val, 2, 1, 1)
         # tts layout
         self.tts_layout = QGridLayout()
-        tts_endpoint = QLineEdit(os.environ.get("TTS_ENDPOINT"))
+        self.layout.addLayout(self.tts_layout)
         self.tts_checkbox = QCheckBox("Enable TTS")
         if os.environ.get("ENABLE_TTS") == 'true': self.tts_checkbox.setChecked(True)
-        self.tts_checkbox.setChecked(True)
-        self.tts_layout.addWidget(self.tts_checkbox, 0, 0, 1, 1)
-        self.tts_layout.addWidget(QLabel("TTS Endpoint"), 0, 1, 1, 1)
-        self.tts_layout.addWidget(tts_endpoint, 0, 2, 1, 1)
-        self.layout.addLayout(self.tts_layout)
+        tts_row = common.IterCount(0)
+        self.tts_layout.addWidget(self.tts_checkbox, tts_row.val, 0, 1, 1)
+        bert_vits_radio_button = QRadioButton("BERT_VITS")
+        self.tts_layout.addWidget(bert_vits_radio_button, next(tts_row), 1, 1, 1)
+        azure_radio_button = QRadioButton("AZURE")
+        self.tts_layout.addWidget(azure_radio_button, tts_row.val, 0, 1, 1)
+        if os.environ.get("TTS_TYPE") == "BERT_VITS":
+            bert_vits_radio_button.setChecked(True)
+        elif os.environ.get("TTS_TYPE") == "AZURE":
+            azure_radio_button.setChecked(True)
+        self.tts_radio_group = QButtonGroup()
+        self.tts_radio_group.addButton(bert_vits_radio_button)
+        self.tts_radio_group.addButton(azure_radio_button)
+        # chatbox 
         self.chatbox_checkbox = QCheckBox("Show Chat Box")
         if os.environ.get("ENABLE_CHATBOX") == 'true': self.chatbox_checkbox.setChecked(True)
         else: self.chatbox_checkbox.setChecked(False)
         self.layout.addWidget(self.chatbox_checkbox)
-        self.llm_checkbox = QCheckBox("Enable LLM")
-        if os.environ.get("ENABLE_LLM") == 'true': self.llm_checkbox.setChecked(True)
-        else: self.llm_checkbox.setChecked(False)
-        self.layout.addWidget(self.llm_checkbox)
         # jump button
         start_button = QPushButton("Start")
         start_button.setFixedSize(880, 100)
         start_button.clicked.connect(self.jump)
         self.layout.addWidget(start_button)
     
-    def set_llm_config_widget(self, layout: QLayout,llm_name: str) -> tuple[QCheckBox, QLineEdit, QLineEdit, QLineEdit, QLineEdit]:
-        checkbox = QCheckBox(llm_name)
-        if os.environ.get(f"ENABLE_{llm_name}") == 'true': checked=True
-        else: checked = False
-        checkbox.setChecked(checked)
-        model = os.environ.get(f"{llm_name}_MODEL")
-        endpoint = QLineEdit(os.environ.get(f"{llm_name}_ENDPOINT"))
-        api_key = QLineEdit(f"{llm_name}_API_KEY")
-        model = QLineEdit(os.environ.get(f"{llm_name}_MODEL"))
-        prefix = QLineEdit(os.environ.get(f"{llm_name}_PREFIX"))
-        inputs = (checkbox, endpoint, api_key, model, prefix)
-        layout.addWidget(checkbox)
-        llm_layout = QGridLayout()
-        layout.addLayout(llm_layout)
-        row = common.IterCount(0)
-        llm_layout.addWidget(QLabel("Endpoint"), next(row), 0, 1, 1)
-        llm_layout.addWidget(endpoint, row.val, 1, 1, 1)
-        llm_layout.addWidget(QLabel("Api Key"), next(row), 0, 1, 1)
-        llm_layout.addWidget(api_key, row.val, 1, 1, 1)
-        llm_layout.addWidget(QLabel("Model"), next(row), 0, 1, 1)
-        llm_layout.addWidget(model, row.val, 1, 1, 1)
-        llm_layout.addWidget(QLabel("Prefix"), next(row), 0, 1, 1)
-        llm_layout.addWidget(prefix, row.val, 1, 1, 1)
-        checkbox.stateChanged.connect(lambda: set_layout_visibility(llm_layout, checkbox.isChecked()))
-        if not checked: set_layout_visibility(llm_layout, False)
-        return inputs
-    
     def jump(self) -> None:
-        if self.azure_inputs[0].isChecked():
-            os.environ["ENABLE_AZURE"] = "true"
-            os.environ["AZURE_ENDPOINT"] = self.azure_inputs[1].text()
-            # os.environ["AZURE_API_KEY"] = self.azure_inputs[2].text()
-            os.environ["AZURE_MODEL"] = self.azure_inputs[3].text()
-            os.environ["AZURE_PREFIX"] = self.azure_inputs[4].text()
-        elif self.gemini_inputs[0].isChecked():
-            os.environ["ENABLE_GEMINI"] = "true"
-            os.environ["GEMINI_ENDPOINT"] = self.gemini_inputs[1].text()
-            # os.environ["GEMINI_API_KEY"] = self.gemini_inputs[2].text()
-            os.environ["GEMINI_MODEL"] = self.gemini_inputs[3].text()
-            os.environ["GEMINI_PREFIX"] = self.gemini_inputs[4].text()
-        elif self.gpt_inputs[0].isChecked():
-            os.environ["ENABLE_GPT"] = "true"
-            os.environ["GPT_ENDPOINT"] = self.gpt_inputs[1].text()
-            # os.environ["GPT_API_KEY"] = self.gpt_inputs[2].text()
-            os.environ["GPT_MODEL"] = self.gpt_inputs[3].text()
-            os.environ["GPT_PREFIX"] = self.gpt_inputs[4].text()
-        os.environ["TTS_ENDPOINT"] = self.tts_layout.itemAt(2).widget().text()
-        os.environ["LIVE2D_ENDPOINT"] = self.live2d_layout.itemAt(1).widget().text()
+        os.environ["ENABLE_LLM"] = str(self.llm_checkbox.isChecked()).lower()
+        os.environ["ENABLE_AZURE"] = str(self.azure_checkbox.isChecked()).lower()
+        os.environ["ENABLE_GEMINI"] = str(self.gemini_checkbox.isChecked()).lower()
+        os.environ["ENABLE_GPT"] = str(self.gpt_checkbox.isChecked()).lower()
         os.environ["ENABLE_TTS"] = str(self.tts_checkbox.isChecked()).lower()
         os.environ["ENABLE_CHATBOX"] = str(self.chatbox_checkbox.isChecked()).lower()
-        os.environ["ENABLE_LLM"] = str(self.llm_checkbox.isChecked()).lower()
+        os.environ["TTS_TYPE"] = str(self.tts_radio_group.checkedButton().text())
         self.hide()
         self.next_window = MainWindow()
         self.next_window.show()
@@ -296,7 +260,11 @@ class BackThead(QThread):
         if self.llm_enable:
             self.llm = llm_clo()
         if self.tts_enable:
-            self.tts = ttss.bert_vits_tts_clo()
+            tts_type = os.environ.get("TTS_TYPE")
+            if tts_type == "BERT_VITS":
+                self.tts = ttss.bert_vits_tts_clo()
+            elif tts_type == "AZURE":
+                self.tts = ttss.azure_tts_clo()
             self.audio_queue = queue.Queue()
             self.audio_thread = AudioThread(self.audio_queue)
             self.audio_thread.start()
@@ -356,11 +324,9 @@ class AudioThread(QThread):
             audio = self.q.get()
             try:
                 temp_audio = io.BytesIO(audio)
-                rate, data = scipy.io.wavfile.read(temp_audio)
+                data, rate = sf.read(temp_audio)
                 data = data * self.volume
-                # self.signal.sig.emit("open")
                 sd.play(data, rate, blocking=True)
-                # self.signal.sig.emit("close")
             except Exception as e:
                 traceback.print_exc()
                 logging.error(f"play audio error {e}")
@@ -379,9 +345,11 @@ def main() -> None:
 
 
 def test(*args, **kwargs) -> None:
-    print(":")
-    print(chr(ord(":") + 65248))
-    pass
+    loop = asyncio.get_event_loop()
+    tts = ttss.azure_tts_clo()
+    audio = loop.run_until_complete(tts("你好~"))
+    data, sample = sf.read(io.BytesIO(audio))
+    sd.play(data, sample, blocking=True)
 
 
 if __name__ == "__main__":
