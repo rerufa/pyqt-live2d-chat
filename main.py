@@ -233,6 +233,8 @@ def llm_clo() -> str:
         llm_list.append(llms.azure_clo())
     if os.environ.get("ENABLE_GEMINI") == "true":
         llm_list.append(llms.gemini_clo())
+    if os.environ.get("ENABLE_GPT") == "true":
+        llm_list.append(llms.gpt_clo())
     @common.wrap_log_ts_async
     async def llm_inner(text: str) -> str:
         tasks = []
