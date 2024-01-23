@@ -2,6 +2,7 @@ python-dotenv
 sounddevice
 soundfile
 PySide6
-pyinstaller
+pyinstaller=5.13.2
 flask
 requests
+numpy

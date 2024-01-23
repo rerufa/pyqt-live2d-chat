@@ -336,8 +336,8 @@ class BackThead(QThread):
     # close 
     def terminate(self) -> None:
         super().terminate()
-        self.audio_thread.terminate()
-        self.bili_thread.terminate()
+        if self.tts_enable: self.audio_thread.terminate()
+        if self.bili_enable: self.bili_thread.terminate()
 
 
 class AudioSignal(QObject):
