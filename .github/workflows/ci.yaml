@@ -1,0 +1,23 @@
+name: pyqt-live2d-chat-ci
+
+on:
+  push:
+    branches: [release]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # strategy:
+      # matrix:
+        # python-version: ["3.9", "3.10"]
+    steps:
+      - uses: actions/checkout@v3
+      - name: ls
+        run: ls
+        shell: bash
+        # env:
+        #   PRIVATE: ${{secrets.PRIVATE}}
+        #   KNOWN_HOSTS: ${{secrets.KNOWN_HOSTS}}
+        #   SSH_PATH: ${{secrets.SSH_PATH}}
+        #   SSH_KEY_PATH: ${{ github.workspace }}/../private.key
