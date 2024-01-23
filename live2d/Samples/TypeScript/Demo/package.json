@@ -7,7 +7,7 @@
     "test": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
-    "serve": "serve ../../.. -p 12301",
+    "serve": "serve ../../.. -p 12303",
     "clean": "rimraf dist"
   },
   "devDependencies": {

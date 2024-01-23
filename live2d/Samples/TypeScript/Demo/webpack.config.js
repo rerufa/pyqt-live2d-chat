@@ -39,7 +39,7 @@ module.exports = {
       }
     ],
     hot: true,
-    port: 12301,
+    port: 12303,
     host: '0.0.0.0',
     compress: true,
     devMiddleware: {

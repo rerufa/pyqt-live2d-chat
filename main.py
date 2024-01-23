@@ -81,6 +81,10 @@ class SettingsWindow(QWidget):
         self.bili_checkbox = QCheckBox("Enable Bili Live Bullet")
         if os.environ.get("ENABLE_BILI") == 'true': self.bili_checkbox.setChecked(True)
         self.layout.addWidget(self.bili_checkbox)
+        # local live2d 
+        self.local_live2d_checkbox = QCheckBox("Enable Local Live2D")
+        if os.environ.get("ENABLE_LOCAL_LIVE2D") == 'true': self.local_live2d_checkbox.setChecked(True)
+        self.layout.addWidget(self.local_live2d_checkbox)
         # jump button
         start_button = QPushButton("Start")
         start_button.setFixedSize(880, 100)
@@ -96,6 +100,7 @@ class SettingsWindow(QWidget):
         os.environ["ENABLE_CHATBOX"] = str(self.chatbox_checkbox.isChecked()).lower()
         os.environ["TTS_TYPE"] = str(self.tts_radio_group.checkedButton().text())
         os.environ["ENABLE_BILI"] = str(self.bili_checkbox.isChecked()).lower()
+        os.environ["ENABLE_LOCAL_LIVE2D"] = str(self.local_live2d_checkbox.isChecked()).lower()
         self.hide()
         self.next_window = MainWindow()
         self.next_window.show()
@@ -125,7 +130,18 @@ class MainWindow(QWidget):
         # web window setting
         self.web_window = QWebEngineView(self)
         self.web_window.page().setBackgroundColor(Qt.GlobalColor.transparent)
-        self.web_window.load(QUrl(os.environ.get("LIVE2D_ENDPOINT")))
+        self.local_live2d_enable = True if os.environ.get("ENABLE_LOCAL_LIVE2D") == 'true' else False
+        if self.local_live2d_enable:
+            # QProcess invoke a npm server
+            self.live2d_process = QProcess(self)
+            self.live2d_process.setWorkingDirectory("./live2d/Samples/TypeScript/Demo")
+            self.live2d_process.start("npm", ["run", "serve"])
+            self.live2d_process.waitForStarted()
+            self.live2d_process.readyReadStandardOutput.connect(self.on_ready_read_standard_output)
+            self.live2d_process.readyReadStandardError.connect(self.on_ready_read_standard_error)
+            url = QUrl("http://127.0.0.1:12303/Samples/TypeScript/Demo/")
+        else: url = QUrl(os.environ.get("LIVE2D_ENDPOINT"))
+        self.web_window.load(url)
         # text edit setting
         self.text_edit = QTextEdit(self)
         self.text_edit.setFixedSize(500, 200)
@@ -207,11 +223,22 @@ class MainWindow(QWidget):
                 self.list_widget_add_item(text)
                 self.list_widget.scrollToBottom()
             self.text_edit.setHtml(text[:120])
+    
+    def on_ready_read_standard_output(self) -> None:
+        data = self.live2d_process.readAllStandardOutput()
+        logging.info(data)
+    
+    def on_ready_read_standard_error(self) -> None:
+        data = self.live2d_process.readAllStandardError()
+        logging.error(data)
 
     # close
     def closeEvent(self, event: QCloseEvent) -> None:
-        super().closeEvent(event)
+        logging.info("in close event")
+        if self.local_live2d_enable:
+            self.live2d_process.kill()
         self.back_thread.terminate()
+        super().closeEvent(event)
 
 
 class MyChatBubble(QWidget):
@@ -312,10 +339,10 @@ class BackThead(QThread):
         llm_task = None
         re = None
         if self.tts_enable:
-            tts_task = asyncio.ensure_future(self.tts(text))
+            tts_task = asyncio.ensure_future(self.tts(text[:300]))
             tasks.append(tts_task)
         if self.llm_enable:
-            llm_task = asyncio.ensure_future(self.llm(text))
+            llm_task = asyncio.ensure_future(self.llm(text[:300]))
             tasks.append(llm_task)
         await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
         if tts_task is not None:
@@ -335,9 +362,9 @@ class BackThead(QThread):
     
     # close 
     def terminate(self) -> None:
-        super().terminate()
         if self.tts_enable: self.audio_thread.terminate()
         if self.bili_enable: self.bili_thread.terminate()
+        super().terminate()
 
 
 class AudioSignal(QObject):
