@@ -44,11 +44,11 @@
 - `./llms/`: llm 代码
 - `./ttss/`: tts 代码
 - `./prompts/`: llm 指示文件
-- `resources/`: 存放了应用所需的资源文件，如 Live2D 模型和背景图片。
+- `./resources/`: 存放了应用所需的资源文件，如 Live2D 模型和背景图片。
 
 ## 5. 支持项目
 
-- live2D https://github.com/Live2D/CubismWebSamples
+- Live2D https://github.com/Live2D/CubismWebSamples
 - 免费模型 https://koiyume233.booth.pm/
 
 ## 6. Q&A

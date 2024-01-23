@@ -236,7 +236,9 @@ class MainWindow(QWidget):
     def closeEvent(self, event: QCloseEvent) -> None:
         logging.info("in close event")
         if self.local_live2d_enable:
+            self.live2d_process.close()
             self.live2d_process.kill()
+            self.live2d_process.waitForFinished()
         self.back_thread.terminate()
         super().closeEvent(event)
 
