@@ -1,0 +1,10 @@
+version: '3'
+services:
+  app:
+    image: bitnami/node:latest
+    ports:
+      - "12301:12303"
+    working_dir: /live2d/Samples/TypeScript/Demo/
+    command: npm run serve
+    volumes:
+      - ./live2d:/live2d
