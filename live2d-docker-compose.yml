@@ -6,5 +6,6 @@ services:
       - "12301:12303"
     working_dir: /live2d/Samples/TypeScript/Demo/
     command: npm run serve
+    restart: unless-stopped
     volumes:
       - ./live2d:/live2d
