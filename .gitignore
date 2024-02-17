@@ -12,3 +12,4 @@ live2d/Samples/Resources/*
 *.log
 *.spec
 *.swp
+.history/*
