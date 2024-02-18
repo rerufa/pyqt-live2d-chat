@@ -58,7 +58,7 @@ The idea is to use `Qt`'s `Webview` to display `live2d` `Web SDK` models.
 3. Initialize submodules: `git submodule update --init`
 4. Install dependencies: `pip install -r requirements.txt`
 5. Run the application: `python main.py`
-6. If you use local live2d, you need to run `cd./live2d/Samples/TypeScript/Demo/ && npm run build && npm run serve`
+6. If you use local live2d, you need to run `cd./live2d/Samples/TypeScript/Demo/ && npm run build && npm run serve` (`npm install -g webpack`)
 
 ### 3.4 打包运行 / Packaging and Running
 

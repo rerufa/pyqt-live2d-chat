@@ -13,3 +13,4 @@ live2d/Samples/Resources/*
 *.spec
 *.swp
 .history/*
+shiro_async.py

@@ -67,8 +67,9 @@ class SettingsWindow(QWidget):
         self.tts_layout.addWidget(azure_radio_button, tts_row.val, 0, 1, 1)
         if os.environ.get("TTS_TYPE") == "BERT_VITS":
             bert_vits_radio_button.setChecked(True)
-        elif os.environ.get("TTS_TYPE") == "AZURE":
-            azure_radio_button.setChecked(True)
+        #elif os.environ.get("TTS_TYPE") == "AZURE":
+        #    azure_radio_button.setChecked(True)
+        azure_radio_button.setChecked(True)
         self.tts_radio_group = QButtonGroup()
         self.tts_radio_group.addButton(bert_vits_radio_button)
         self.tts_radio_group.addButton(azure_radio_button)
@@ -111,14 +112,37 @@ class SettingsWindow(QWidget):
         super().closeEvent(event)
 
 
+class QWebEngineViewDrag(QWebEngineView):
+    def contextMenuEvent(self, event):
+        self.menu = QMenu()
+        
+        self.menu_action_settings = self.menu.addAction('Settings')
+        self.menu_action_settings.triggered.connect(self.parentWidget().openSettings)
+        
+        self.menu_action_exit = self.menu.addAction("Exit") # = QAction
+        #self.menu_action_exit.setText("Exit")
+        self.menu_action_exit.triggered.connect(self.parentWidget().close) # self.close
+        #self.menu.addAction(self.menu_action_exit)
+        
+        self.menu.popup(event.globalPos())
+        
+    def mousePressEvent(self, event):
+        self.oldPos = event.globalPos()
+
+    def mouseMoveEvent(self, event):
+        delta = QPoint (event.globalPos() - self.oldPos)
+        self.move(self.x() + delta.x(), self.y() + delta.y())
+        self.oldPos = event.globalPos()
+
 class MainWindow(QWidget):
     def __init__(self) -> None:
         super().__init__()
+        self.clicked = False
         self.setWindowTitle("Main Window")
         self.resize(500, 800)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setWindowFlags(
-            # Qt.WindowType.WindowStaysOnTopHint
+            Qt.WindowType.WindowStaysOnTopHint |
             Qt.WindowType.FramelessWindowHint 
             # Qt.WindowType.WindowTransparentForInput
         )
@@ -128,7 +152,8 @@ class MainWindow(QWidget):
         self.live2d_layout = QVBoxLayout()
         self.layout.addLayout(self.live2d_layout, 0, 0, 1, 1)
         # web window setting
-        self.web_window = QWebEngineView(self)
+        self.web_window = QWebEngineViewDrag(self)
+        #self.web_window.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
         self.web_window.page().setBackgroundColor(Qt.GlobalColor.transparent)
         self.local_live2d_enable = True if os.environ.get("ENABLE_LOCAL_LIVE2D") == 'true' else False
         if self.local_live2d_enable:
@@ -145,7 +170,7 @@ class MainWindow(QWidget):
         # text edit setting
         self.text_edit = QTextEdit(self)
         self.text_edit.setFixedSize(500, 200)
-        self.text_edit.setHtml("小鸣也爱无所事事哟~")
+        self.text_edit.setHtml("Xiaoming also loves to do nothing~")
         self.text_edit.setStyleSheet(
             "background-image: url(resources/chat.png);\
             background-position: top left;\
@@ -158,6 +183,9 @@ class MainWindow(QWidget):
         self.text_edit.setFrameStyle(0) # 0 is invisible
         self.live2d_layout.addWidget(self.text_edit)
         self.live2d_layout.addWidget(self.web_window)
+        
+        self.web_window.focusProxy().installEventFilter(self)
+        
         self.back_q = queue.Queue()
         self.back_thread = BackThead(self.back_q)
         self.back_thread.start()
@@ -171,25 +199,62 @@ class MainWindow(QWidget):
             self.list_widget = QListWidget()
             self.list_widget.setFixedSize(500, 750)
             self.chat_layout.addWidget(self.list_widget)
-            # 创建输入框
+            # 创建输入框 / Create an input box
             self.input_box = QLineEdit()
             self.input_box.setFixedSize(500, 50)
-            # 添加控件到窗口
+            # 添加控件到窗口 / Add the controls to the window
             self.chat_layout.addWidget(self.input_box)
             self.submit_button = QPushButton("Submit")
             self.chat_layout.addWidget(self.submit_button)
 
-            # 连接信号
+            # 连接信号 / Connect the signals
             self.submit_button.clicked.connect(self.on_submit_pressed)
             self.input_box.returnPressed.connect(self.on_submit_pressed)
+ 
+    def eventFilter(self, obj, event):
+        import PySide6.QtCore
+        if obj is self.web_window.focusProxy() and event.type() == PySide6.QtCore.QEvent.MouseMove and self.clicked:
+            #print("MouseMove")
+            delta = QPoint (event.globalPosition().toPoint() - self.oldPos)
+            self.move(self.x() + delta.x(), self.y() + delta.y())
+            self.oldPos = event.globalPosition().toPoint()
+            
+        if obj is self.web_window.focusProxy() and event.type() == PySide6.QtCore.QEvent.MouseButtonPress:
+            #print("Widget click")
+            self.oldPos = event.globalPosition().toPoint()
+            self.clicked = True
+            
+        if obj is self.web_window.focusProxy() and event.type() == PySide6.QtCore.QEvent.MouseButtonRelease:
+            #print("Widget unclick")
+            self.clicked = False
+            
+        return super(MainWindow, self).eventFilter(obj, event)
+    
+    def mousePressEvent(self, event):
+        self.oldPos = event.globalPosition().toPoint()
 
+    def mouseMoveEvent(self, event):
+        delta = QPoint (event.globalPosition().toPoint() - self.oldPos)
+        self.move(self.x() + delta.x(), self.y() + delta.y())
+        self.oldPos = event.globalPosition().toPoint()
+         
+    def openSettings(self) -> None:
+        #print(self)
+        self.hide()
+        self.next_window = SettingsWindow()
+        self.next_window.show()
+        self.destroy()    
+           
+    def closeEvent(self, event: QCloseEvent) -> None:
+        super().closeEvent(event)
+                  
     def on_submit_pressed(self) -> None:
-        # 获取输入文本
+        # 获取输入文本 / Get the input text
         text = self.input_box.text()
         if text.strip() == "":return
-        # 将文本添加到列表控件
+        # 将文本添加到列表控件 / Add the text to the list widget
         self.list_widget_add_item(text, Qt.AlignmentFlag.AlignRight)
-        # 清空输入框
+        # 清空输入框 / Clear input box
         self.input_box.clear()
         # listwidget to bottom
         self.list_widget.scrollToBottom()
@@ -198,7 +263,7 @@ class MainWindow(QWidget):
         self.submit_button.setEnabled(False)
         # send 2 llm
         self.back_q.put(text)
-    
+   
     def list_widget_add_item(self, text: str, align: Qt.AlignmentFlag=Qt.AlignmentFlag.AlignLeft) -> None:
         item = QListWidgetItem(self.list_widget)
         br_count = text.count("\n")
@@ -258,17 +323,17 @@ class MyChatBubble(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setFont(QFont("Microsoft YaHei", 15))
-        # 绘制背景
+        # 绘制背景 / Draw background
         painter.setBrush(QBrush(QColor(255, 255, 255)))
         painter.drawRoundedRect(self.delta, 0, self.width() - self.width_fix, self.height(), 10, 10)
-        # 绘制气泡边框
+        # 绘制气泡边框 / Draw a bubble frame
         painter.setPen(QPen(QColor(0, 0, 0), 1))
         painter.drawRoundedRect(1 + self.delta, 1, self.width() - 2 - self.width_fix, self.height() - 2, 10, 10)
-        # 绘制气泡阴影
+        # 绘制气泡阴影 / Draw the shadow of bubble
         painter.setPen(QPen(QColor(0, 0, 0), 1))
         painter.drawLine(1 + self.delta, self.height() - 1, self.width() - 1 - self.width_fix, self.height() - 1)
         painter.drawLine(self.width() - 1, self.height() - 1, self.width() - 1, 1)
-        # 绘制文本
+        # 绘制文本 / Draw text
         painter.setPen(QPen(QColor(0, 0, 0), 10))
         painter.drawText(QRect(abs(self.delta - 10), 0, self.width() - self.width_fix, self.height()), self.message, self.align)
 
