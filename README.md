@@ -8,7 +8,7 @@
 
 核心是使用`Qt`的`Webview`展示`live2d`的`Web SDK`模型.
 
-######---------------------------------------------------------------------------
+###### ---------------------------------------------------------------------------
 
 This project is a chat application based on `PySide6` and `Live2D`. It provides a graphical interface for users to interact with `Live2D` models in real time, and supports `Gemini`, `Azure GPT`, `Openai GPT` models.
 
@@ -32,7 +32,7 @@ The idea is to use `Qt`'s `Webview` to display `live2d` `Web SDK` models.
 首先复制 `.env.sample` 为 `.env`
 配置具体参考代码与配置文件的注释.
 
-######---------------------------------------------------------------------------
+###### ---------------------------------------------------------------------------
 
 1. Copy `.env.sample` to `.env`
 2. Configure the specific code and configuration file according to the code and configuration file comments.
@@ -51,7 +51,7 @@ The idea is to use `Qt`'s `Webview` to display `live2d` `Web SDK` models.
 5. 运行应用：`python main.py`
 6. 如果使用本地 live2d, 需要运行 `cd ./live2d/Samples/TypeScript/Demo/ && npm run build && npm run serve`
 
-######---------------------------------------------------------------------------
+###### ---------------------------------------------------------------------------
 
 1. Clone the project to local: `git@github.com:JhonSmith0x7b/pyqt-live2d-chat.git`
 2. Enter the project directory: `cd pyqt-live2d-chat`
@@ -64,7 +64,7 @@ The idea is to use `Qt`'s `Webview` to display `live2d` `Web SDK` models.
 
 1. windows 使用 `build_main.ps1` 进行 pyinstaller 打包 exe 程序.
 
-######---------------------------------------------------------------------------
+###### ---------------------------------------------------------------------------
 
 1. On windows use `build_main.ps1` to package the exe program.
    question: what's .ps1?
@@ -78,7 +78,7 @@ The idea is to use `Qt`'s `Webview` to display `live2d` `Web SDK` models.
 - `./prompts/`: llm 指示文件
 - `./resources/`: 存放了应用所需的资源文件，如 Live2D 模型和背景图片。
 
-######---------------------------------------------------------------------------
+###### ---------------------------------------------------------------------------
 
 - `main.py`: The entry file of the application, which contains the main logic.
 - `./live2d/`: Live2D code, modified from Web SDK Demo.
@@ -92,7 +92,7 @@ The idea is to use `Qt`'s `Webview` to display `live2d` `Web SDK` models.
 - Live2D https://github.com/Live2D/CubismWebSamples
 - 免费模型 https://koiyume233.booth.pm/
 
-######---------------------------------------------------------------------------
+###### ---------------------------------------------------------------------------
 
 - Live2D https://github.com/Live2D/CubismWebSamples
 - Free model https://koiyume233.booth.pm/
@@ -103,6 +103,6 @@ The idea is to use `Qt`'s `Webview` to display `live2d` `Web SDK` models.
 
 复制模型文件夹到 `./live2d/Resources/`, 修改 `./live2d/Samples/TypeScript/Demo/src/lappdefine.ts` 的 `ModelDir`, 将模型文件夹名称加入里面, npm 重新打包.
 
-######---------------------------------------------------------------------------
+###### ---------------------------------------------------------------------------
 
 Copy the model folder to `./live2d/Resources/`, modify the `./live2d/Samples/TypeScript/Demo/src/lappdefine.ts` of `ModelDir`, add the name folder name to it, NPM reinsert.
